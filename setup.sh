@@ -144,8 +144,8 @@ ok "wezterm.lua written to $WEZTERM_CONFIG_FILE"
 # 4. MesloLGS Nerd Font Mono
 # =============================================================================
 step "Installing MesloLGS Nerd Font Mono"
-if ! brew list --cask font-meslo-lgs-nerd-font &>/dev/null; then
-  brew install --cask font-meslo-lgs-nerd-font
+if ! brew list --cask font-meslo-lg-nerd-font &>/dev/null; then
+  brew install --cask font-meslo-lg-nerd-font
   ok "Font installed"
 else
   ok "Font already installed"
