@@ -27,7 +27,7 @@ eval "$(ssh-agent -s)"
 
 # Find whichever private key exists
 SSH_KEY=""
-for candidate in ~/.ssh/id_ed25519 ~/.ssh/id_rsa ~/.ssh/id_ecdsa; do
+for candidate in ~/.ssh/github_key ~/.ssh/id_ed25519 ~/.ssh/id_rsa ~/.ssh/id_ecdsa; do
   if [[ -f "$candidate" ]]; then
     SSH_KEY="$candidate"
     break
@@ -53,6 +53,15 @@ else
 fi
 
 step "Updating Homebrew"
+# Tell only Homebrew's git to use HTTPS — does not affect your global git config
+HOMEBREW_GIT_CONFIG="/opt/homebrew/.git/config"
+if [[ -f "$HOMEBREW_GIT_CONFIG" ]]; then
+  git config -f "$HOMEBREW_GIT_CONFIG" url."https://github.com/".insteadOf "git@github.com:"
+fi
+# Do the same for each tap that uses SSH
+for tap_git in /opt/homebrew/Library/Taps/*/*/.git/config; do
+  [[ -f "$tap_git" ]] && git config -f "$tap_git" url."https://github.com/".insteadOf "git@github.com:"
+done
 brew update --force && ok "Homebrew updated" || warn "Homebrew update had issues — continuing anyway"
 
 # Resolve brew prefix so paths work on both Apple Silicon and Intel
