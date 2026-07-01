@@ -3,9 +3,6 @@
 # Terminal Environment Setup
 # Sets up WezTerm, Neovim, Powerlevel10k, eza, zoxide, and shell plugins
 # =============================================================================
-step "Updating Homebrew"
-brew update --force
-ok "Homebrew updated"
 
 set -e
 
@@ -19,21 +16,38 @@ step()  { echo -e "\n${BOLD}${CYAN}▶ $1${RESET}"; }
 ok()    { echo -e "${GREEN}✔ $1${RESET}"; }
 warn()  { echo -e "${YELLOW}⚠ $1${RESET}"; }
 
+# Trap to show which line failed
+trap 'echo -e "\n\033[0;31m❌ Setup failed at line $LINENO\033[0m"' ERR
+
 # =============================================================================
-# 1. Homebrew
+# 1. SSH agent
+# =============================================================================
+step "Loading SSH key into agent"
+eval "$(ssh-agent -s)"
+ssh-add --apple-use-keychain ~/.ssh/id_ed25519
+ok "SSH key loaded"
+
+# =============================================================================
+# 2. Homebrew
 # =============================================================================
 step "Checking Homebrew"
 if ! command -v brew &>/dev/null; then
   echo "Installing Homebrew..."
   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-  # Add brew to PATH for Apple Silicon (the script may not have done it yet)
   eval "$(/opt/homebrew/bin/brew shellenv)"
 else
   ok "Homebrew already installed"
 fi
 
+step "Updating Homebrew"
+brew update --force
+ok "Homebrew updated"
+
+# Resolve brew prefix so paths work on both Apple Silicon and Intel
+BREW_PREFIX="$(brew --prefix)"
+
 # =============================================================================
-# 2. WezTerm
+# 3. WezTerm
 # =============================================================================
 step "Installing WezTerm"
 if ! brew list --cask wezterm &>/dev/null; then
@@ -49,10 +63,11 @@ WEZTERM_CONFIG_FILE="$WEZTERM_CONFIG_DIR/wezterm.lua"
 mkdir -p "$WEZTERM_CONFIG_DIR"
 
 if [[ -f "$WEZTERM_CONFIG_FILE" ]]; then
-  warn "wezterm.lua already exists — skipping (backup at wezterm.lua.bak)"
+  warn "wezterm.lua already exists — backing up and overwriting"
   cp "$WEZTERM_CONFIG_FILE" "$WEZTERM_CONFIG_FILE.bak"
-else
-  cat > "$WEZTERM_CONFIG_FILE" << 'WEZTERM_EOF'
+fi
+
+cat > "$WEZTERM_CONFIG_FILE" << 'WEZTERM_EOF'
 local wezterm = require("wezterm")
 
 local config = wezterm.config_builder()
@@ -102,23 +117,21 @@ config.keys = {
 
 return config
 WEZTERM_EOF
-  ok "wezterm.lua written to $WEZTERM_CONFIG_FILE"
-fi
+ok "wezterm.lua written to $WEZTERM_CONFIG_FILE"
 
 # =============================================================================
-# 3. MesloLGS Nerd Font Mono
+# 4. MesloLGS Nerd Font Mono
 # =============================================================================
 step "Installing MesloLGS Nerd Font Mono"
-if ! brew list --cask font-meslo-lg-nerd-font &>/dev/null; then
-  brew tap homebrew/cask-fonts 2>/dev/null || true
-  brew install --cask font-meslo-lg-nerd-font
+if ! brew list --cask font-meslo-lgs-nerd-font &>/dev/null; then
+  brew install --cask font-meslo-lgs-nerd-font
   ok "Font installed"
 else
   ok "Font already installed"
 fi
 
 # =============================================================================
-# 4. Neovim
+# 5. Neovim
 # =============================================================================
 step "Installing Neovim"
 if ! command -v nvim &>/dev/null; then
@@ -129,7 +142,7 @@ else
 fi
 
 # =============================================================================
-# 5. Shell tools — eza, zoxide
+# 6. Shell tools — eza, zoxide
 # =============================================================================
 step "Installing eza and zoxide"
 for pkg in eza zoxide; do
@@ -142,7 +155,7 @@ for pkg in eza zoxide; do
 done
 
 # =============================================================================
-# 6. Zsh plugins — autosuggestions, syntax-highlighting
+# 7. Zsh plugins — autosuggestions, syntax-highlighting
 # =============================================================================
 step "Installing zsh-autosuggestions and zsh-syntax-highlighting"
 for pkg in zsh-autosuggestions zsh-syntax-highlighting; do
@@ -155,7 +168,7 @@ for pkg in zsh-autosuggestions zsh-syntax-highlighting; do
 done
 
 # =============================================================================
-# 7. Powerlevel10k
+# 8. Powerlevel10k
 # =============================================================================
 step "Installing Powerlevel10k"
 if ! brew list powerlevel10k &>/dev/null; then
@@ -166,7 +179,7 @@ else
 fi
 
 # =============================================================================
-# 8. Append to ~/.zshrc (idempotent — only adds lines that aren't there yet)
+# 9. Append to ~/.zshrc (idempotent — only adds lines that aren't there yet)
 # =============================================================================
 step "Updating ~/.zshrc"
 
@@ -175,7 +188,6 @@ touch "$ZSHRC"
 
 append_if_missing() {
   local line="$1"
-  # grep -qF for literal string match
   if ! grep -qF "$line" "$ZSHRC"; then
     echo "$line" >> "$ZSHRC"
     ok "Added: $line"
@@ -190,7 +202,6 @@ P10K_INSTANT_PROMPT='if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prom
 fi'
 
 if ! grep -qF "p10k-instant-prompt" "$ZSHRC"; then
-  # Prepend to the top of .zshrc
   TMP_FILE=$(mktemp)
   echo "$P10K_INSTANT_PROMPT" > "$TMP_FILE"
   echo "" >> "$TMP_FILE"
@@ -201,14 +212,14 @@ else
   warn "p10k instant-prompt already present, skipped"
 fi
 
-# Lines to append at the bottom
-append_if_missing 'source /opt/homebrew/share/powerlevel10k/powerlevel10k.zsh-theme'
+# Lines to append at the bottom (using dynamic brew prefix)
+append_if_missing "source ${BREW_PREFIX}/share/powerlevel10k/powerlevel10k.zsh-theme"
 append_if_missing 'alias ls="eza --icons=always"'
 append_if_missing 'eval "$(zoxide init zsh)"'
 append_if_missing 'alias cd="z"'
 append_if_missing '[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh'
-append_if_missing 'source /opt/homebrew/share/zsh-autosuggestions/zsh-autosuggestions.zsh'
-append_if_missing 'source /opt/homebrew/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh'
+append_if_missing "source ${BREW_PREFIX}/share/zsh-autosuggestions/zsh-autosuggestions.zsh"
+append_if_missing "source ${BREW_PREFIX}/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
 
 # =============================================================================
 # Done
