@@ -3,6 +3,9 @@
 # Terminal Environment Setup
 # Sets up WezTerm, Neovim, Powerlevel10k, eza, zoxide, and shell plugins
 # =============================================================================
+step "Updating Homebrew"
+brew update --force
+ok "Homebrew updated"
 
 set -e
 
