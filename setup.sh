@@ -125,6 +125,11 @@ config.keys = {
     mods = "CMD|SHIFT",
     action = wezterm.action.SplitVertical,
   },
+  { 
+	key = "w",
+	mods = "CTRL|SHIFT",
+	action = wezterm.action.CloseCurrentPane { confirm = false }, 
+   },
 }
 
 return config
