@@ -24,8 +24,21 @@ trap 'echo -e "\n\033[0;31m❌ Setup failed at line $LINENO\033[0m"' ERR
 # =============================================================================
 step "Loading SSH key into agent"
 eval "$(ssh-agent -s)"
-ssh-add --apple-use-keychain ~/.ssh/id_ed25519
-ok "SSH key loaded"
+
+# Find whichever private key exists
+SSH_KEY=""
+for candidate in ~/.ssh/id_ed25519 ~/.ssh/id_rsa ~/.ssh/id_ecdsa; do
+  if [[ -f "$candidate" ]]; then
+    SSH_KEY="$candidate"
+    break
+  fi
+done
+
+if [[ -n "$SSH_KEY" ]]; then
+  ssh-add --apple-use-keychain "$SSH_KEY" && ok "SSH key loaded ($SSH_KEY)" || warn "Could not load SSH key — you may be prompted later"
+else
+  warn "No SSH key found in ~/.ssh — skipping"
+fi
 
 # =============================================================================
 # 2. Homebrew
@@ -40,8 +53,7 @@ else
 fi
 
 step "Updating Homebrew"
-brew update --force
-ok "Homebrew updated"
+brew update --force && ok "Homebrew updated" || warn "Homebrew update had issues — continuing anyway"
 
 # Resolve brew prefix so paths work on both Apple Silicon and Intel
 BREW_PREFIX="$(brew --prefix)"
